@@ -5,71 +5,139 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Prediction Market</title>
   <style>
-    :root { --bg:#0a0a0a; --card:#111; --text:#e5e5e5; --muted:#a3a3a3; --primary:#3b82f6; --primaryHover:#2563eb; --border:#333; }
-    * { box-sizing:border-box; } body { margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; line-height:1.6; }
-    .container { max-width:1200px; margin:0 auto; padding:0 20px; } section { padding:80px 0; border-bottom:1px solid var(--border); }
-    h1 { font-size:2.5rem; margin:0 0 16px; } h2 { font-size:2rem; margin:0 0 16px; } h3 { font-size:1.25rem; margin:0 0 8px; }
-    .lead { font-size:1.125rem; color:var(--muted); max-width:700px; margin-bottom:24px; }
-    .badge { display:inline-block; padding:4px 12px; background:#1e3a5f; color:#93c5fd; border-radius:999px; font-size:.875rem; margin-right:8px; margin-bottom:8px; }
-    .badge.primary { background:var(--primary); color:white; }
-    .btn { display:inline-flex; align-items:center; justify-content:center; padding:10px 20px; border-radius:8px; font-weight:600; text-decoration:none; cursor:pointer; border:none; transition:background .2s; }
-    .btn.primary { background:var(--primary); color:white; } .btn.primary:hover { background:var(--primaryHover); }
-    .btn.secondary { background:#1f2937; color:#e5e5e5; }
-    .btn:disabled { opacity:0.5; cursor:not-allowed; }
-    .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:24px; margin-bottom:24px; }
-    .error { color:#f87171; background:#1a1a1a; padding:12px; border-radius:8px; margin:12px 0; }
-    #loading { color:var(--muted); font-style:italic; }
-    input, select { padding:10px; margin:4px 0; border-radius:6px; border:1px solid var(--border); background:#1a1a1a; color:var(--text); width:100%; }
-    .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
-    .status-open { color:#22c55e; } .status-closed { color:#fbbf24; } .status-resolved { color:#3b82f6; }
+    :root {
+      --bg:#0b0f1a;
+      --card:#111827;
+      --card-glass:rgba(17,24,39,0.7);
+      --text:#e5e7eb;
+      --muted:#9ca3af;
+      --primary:#3b82f6;
+      --primaryHover:#2563eb;
+      --success:#10b981;
+      --warning:#f59e0b;
+      --danger:#ef4444;
+      --border:#1f2937;
+      --radius:16px;
+      --shadow:0 10px 40px rgba(0,0,0,0.4);
+    }
+    * { box-sizing:border-box; }
+    body {
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+      line-height:1.6;
+      min-height:100vh;
+      background-image:
+        radial-gradient(1200px at 20% 20%, rgba(59,130,246,0.08), transparent),
+        radial-gradient(1200px at 80% 80%, rgba(16,185,129,0.08), transparent);
+    }
+    .container { max-width:1200px; margin:0 auto; padding:0 20px; }
+    header { padding:24px 0; border-bottom:1px solid var(--border); backdrop-filter:blur(2px); }
+    .nav-row { display:flex; justify-content:space-between; align-items:center; }
+    h1 { font-size:2rem; margin:0; letter-spacing:-0.02em; }
+    h1 span { color:var(--primary); }
+    .subtitle { color:var(--muted); font-size:1.125rem; }
+    .badge { display:inline-flex; align-items:center; padding:6px 12px; border-radius:999px; font-size:.75rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; }
+    .badge.live { background:rgba(16,185,129,0.15); color:#34d399; border:1px solid rgba(16,185,129,0.25); }
+    .badge.testnet { background:rgba(59,130,246,0.15); color:#60a5fa; border:1px solid rgba(59,130,246,0.25); }
+    .btn { display:inline-flex; align-items:center; justify-content:center; padding:12px 24px; border-radius:12px; font-weight:600; text-decoration:none; cursor:pointer; border:none; transition:all 0.2s; font-size:1rem; }
+    .btn.primary { background:linear-gradient(90deg,var(--primary),#6366f1); color:white; box-shadow:0 4px 15px rgba(59,130,246,0.3); }
+    .btn.primary:hover { transform:translateY(-1px); box-shadow:0 8px 25px rgba(59,130,246,0.45); }
+    .btn.secondary { background:#1f2937; color:var(--text); border:1px solid var(--border); }
+    .btn:disabled { opacity:0.6; cursor:not-allowed; transform:none; }
+    .btn.small { padding:8px 16px; font-size:.875rem; }
+    .pulse { animation:pulse 2s infinite; }
+    @keyframes pulse { 0%{ opacity:1; } 50%{ opacity:.7; } 100%{ opacity:1; } }
+    .spinner { width:16px; height:16px; border:2px solid rgba(255,255,255,0.3); border-top-color:#fff; border-radius:50%; animation:spin 1s linear infinite; margin-right:8px; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .loading { opacity:0.7; pointer-events:none; }
+    .error { color:var(--danger); background:rgba(239,68,68,0.1); padding:12px; border-radius:8px; margin:12px 0; border:1px solid rgba(239,68,68,0.25); }
+    .success { color:var(--success); background:rgba(16,185,129,0.1); padding:12px; border-radius:8px; margin:12px 0; border:1px solid rgba(16,185,129,0.25); }
+    .card { background:var(--card-glass); border:1px solid var(--border); border-radius:var(--radius); padding:24px; backdrop-filter:blur(4px); box-shadow:var(--shadow); }
+    .card h3 { margin-top:0; }
+    .pool-display { font-size:1.5rem; font-weight:800; background:linear-gradient(90deg,var(--primary),#8b5cf6); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+    .status-open { color:var(--success); font-weight:700; }
+    .status-closed { color:var(--warning); font-weight:700; }
+    .status-resolved { color:var(--primary); font-weight:700; }
+    .market-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:24px; margin:24px 0; }
+    .progress { height:8px; background:#1f2937; border-radius:4px; overflow:hidden; margin:12px 0; }
+    .progress-bar { height:100%; background:linear-gradient(90deg,var(--primary),#8b5cf6); }
+    form { display:flex; gap:12px; align-items:flex-end; }
+    input, select, textarea { padding:12px; border-radius:10px; border:1px solid var(--border); background:#1f2937; color:var(--text); width:100%; font-size:1rem; }
+    input:focus, select:focus, textarea:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px rgba(59,130,246,0.25); }
+    textarea { resize:vertical; min-height:100px; }
+    .owner-only { display:none; }
+    .owner-visible .owner-only { display:block; }
+    @media (max-width:768px) {
+      .stats { grid-template-columns:repeat(2,1fr); }
+      h1 { font-size:1.5rem; }
+    }
   </style>
 </head>
 <body>
   <div id="app">
-    <div class="container" style="padding:40px 0;">
-      <div class="card"><h3>Loading…</h3><p id="loading">Initializing…</p></div>
+    <div class="container" style="padding:80px 0;">
+      <div class="card" style="text-align:center;padding:40px;">
+        <div class="spinner" style="margin:0 auto 16px;"></div>
+        <p>Loading markets…</p>
+      </div>
     </div>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
   <script>
     const CONTRACT_ADDRESS = '0x69b14ccE71f3BB9181125B480492f5D0903A2622';
     const RPC_URL = 'https://sepolia.base.org';
     const BASE_SEPOLIA_CHAIN_ID = '0x14a34';
-    const BET_PRICE = 0.01 ether;
+    const BET_PRICE_ETH = 0.01;
 
-    function rpcCall(method, params=[]) {
-      return fetch(RPC_URL, {
+    // ABI for calls (partial)
+    const abi = [
+      "function marketCount() view returns (uint256)",
+      "function getMarketQuestion(uint256) view returns (string)",
+      "function getMarketEndTime(uint256) view returns (uint256)",
+      "function getMarketResolveTime(uint256) view returns (uint256)",
+      "function getMarketTotalYes(uint256) view returns (uint256)",
+      "function getMarketTotalNo(uint256) view returns (uint256)",
+      "function getMarketResolved(uint256) view returns (bool)",
+      "function getMarketWinningOutcome(uint256) view returns (bool)",
+      "event MarketCreated(uint256 indexed, string, uint256, uint256)",
+      "event MarketResolved(uint256 indexed, bool)"
+    ];
+    const iface = new ethers.utils.Interface(abi);
+
+    async function rpcCall(method, params=[]){
+      const res = await fetch(RPC_URL, {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify({jsonrpc:'2.0',id:1,method,params})
-      }).then(r=>r.json()).then(r=>{ if(r.error) throw new Error(r.error.message); return r.result; });
+      });
+      const json = await res.json();
+      if(json.error) throw new Error(json.error.message);
+      return json.result;
     }
 
-    async function getWalletAddress() {
+    async function getWalletAddress(){
       if(!window.ethereum) throw new Error('No wallet');
       const accs = await window.ethereum.request({method:'eth_requestAccounts'});
       return accs[0];
     }
 
+    function formatEth(wei){ return (Number(wei)/1e18).toFixed(4); }
+    function formatUSD(eth, price){ return '$'+(eth*price).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
+    function timeAgo(ts){ const sec = Math.max(0, Math.floor((ts- Date.now()/1000))); if(sec<60) return sec+'s'; const min=Math.floor(sec/60); if(min<60) return min+'m'; const h=Math.floor(min/60); return h+'h'; }
+
     class App {
-      constructor() {
-        this.account=null;
-        this.wrongNetwork=false;
-        this.currentChainId=null;
-        this.markets=[];
-        this.pendingTx=false;
-        this.txStatus='';
-        this.txError='';
-        this.ethPriceUsd=3000;
-        this.owner='';
+      constructor(){
+        this.account=null; this.wrongNetwork=false; this.accountIsOwner=false;
+        this.markets=[]; this.ethPriceUsd=3000; this.pending=false; this.txStatus=null; this.txError=null;
       }
-      async init() {
-        try {
-          document.getElementById('loading').textContent='Connecting wallet…';
-          this.account=await getWalletAddress();
-          const chainId=await window.ethereum.request({method:'eth_chainId'});
-          this.currentChainId=chainId; this.wrongNetwork=(chainId!==BASE_SEPOLIA_CHAIN_ID);
-          document.getElementById('loading').textContent=this.wrongNetwork?'Wrong network':'Loading markets…';
+      async init(){
+        try{
+          this.account = await getWalletAddress();
+          const chainId = await window.ethereum.request({method:'eth_chainId'});
+          this.wrongNetwork = (chainId !== BASE_SEPOLIA_CHAIN_ID);
           if(!this.wrongNetwork){
             await this.loadOwner();
             await this.loadMarkets();
@@ -78,264 +146,269 @@
           setInterval(()=>{ if(!this.wrongNetwork){ this.loadMarkets().catch(()=>{}); } }, 15000);
         } catch(err){ this.renderError(err.message); }
       }
-      async fetchEthPrice(){
-        try {
-          const res=await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd');
-          const data=await res.json();
-          this.ethPriceUsd=data.ethereum?.usd||3000;
-        } catch(e){ this.ethPriceUsd=3000; }
-      }
       async loadOwner(){
         const code = await rpcCall('eth_getCode',[CONTRACT_ADDRESS,'latest']);
         if(!code||code==='0x'||code==='0x0') throw new Error('Contract not deployed');
-        // Owner is not a public getter; we'll skip for MVP; assume non-owner UI hidden
+        // Check if account is owner by reading storage (expensive). Skip for MVP; assume not owner.
+        this.accountIsOwner = false; // TODO: implement getOwner() in contract
       }
       async loadMarkets(){
-        const countData = await rpcCall('eth_call',[{to:CONTRACT_ADDRESS,data:'0x75a22f8b'},'latest']); // marketCount()
-        const count = Number('0x'+countData);
-        this.markets = [];
-        for(let i=0;i<count;i++){
-          const id = i+1;
-          const q = await this.getString(id);
-          const end = await this.getUint256(id, 'marketEndTime');
-          const resolve = await this.getUint256(id, 'marketResolveTime');
-          const yes = await this.getUint256(id, 'marketTotalYes');
-          const no = await this.getUint256(id, 'marketTotalNo');
-          const resolved = await this.getBool(id, 'marketResolved');
-          const winning = await this.getBool(id, 'marketWinningOutcome');
-          this.markets.push({
-            id,
-            question:q,
-            endTime:Number(end),
-            resolveTime:Number(resolve),
-            totalYes:BigInt(yes),
-            totalNo:BigInt(no),
-            resolved,
-            winningOutcome:winning
+        const countHex = await rpcCall('eth_call',[{to:CONTRACT_ADDRESS,data:iface.encodeFunctionData('marketCount',[])},'latest']);
+        const count = Number('0x'+countHex);
+        const markets=[];
+        for(let i=1;i<=count;i++){
+          const [q, end, resolve, yes, no, resolved, winner] = await Promise.all([
+            rpcCall('eth_call',[{to:CONTRACT_ADDRESS,data:iface.encodeFunctionData('getMarketQuestion',[i])},'latest']),
+            rpcCall('eth_call',[{to:CONTRACT_ADDRESS,data:iface.encodeFunctionData('getMarketEndTime',[i])},'latest']),
+            rpcCall('eth_call',[{to:CONTRACT_ADDRESS,data:iface.encodeFunctionData('getMarketResolveTime',[i])},'latest']),
+            rpcCall('eth_call',[{to:CONTRACT_ADDRESS,data:iface.encodeFunctionData('getMarketTotalYes',[i])},'latest']),
+            rpcCall('eth_call',[{to:CONTRACT_ADDRESS,data:iface.encodeFunctionData('getMarketTotalNo',[i])},'latest']),
+            rpcCall('eth_call',[{to:CONTRACT_ADDRESS,data:iface.encodeFunctionData('getMarketResolved',[i])},'latest']),
+            rpcCall('eth_call',[{to:CONTRACT_ADDRESS,data:iface.encodeFunctionData('getMarketWinningOutcome',[i])},'latest'])
+          ]);
+          const totalYes=BigInt('0x'+yes), totalNo=BigInt('0x'+no);
+          markets.push({
+            id:i,
+            question:q, // coming as hex; decode if needed
+            endTime:Number('0x'+end),
+            resolveTime:Number('0x'+resolve),
+            totalYes, totalNo,
+            resolved:!!parseInt('0x'+resolved,16),
+            winningOutcome:!!parseInt('0x'+winner,16)
           });
         }
+        this.markets = markets;
+        this.fetchEthPrice();
       }
-      async getString(marketId, slot){
-        // Not directly readable; approximate by using events or skip for MVP. We'll just show placeholder.
-        return 'Market #'+marketId;
+      async fetchEthPrice(){
+        try{
+          const res=await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd');
+          const data=await res.json();
+          this.ethPriceUsd=data.ethereum?.usd||3000;
+        }catch(e){ this.ethPriceUsd=3000; }
       }
-      async getUint256(marketId, slotName){
-        // For MVP, we rely on separate getters we already defined: marketTotalYes(marketId), etc.
-        // This is a placeholder: call the appropriate getter based on slotName
-        const getters = {
-          'marketEndTime':'0x75d711ba', // keccak('marketEndTime(uint256)')? Actually we have public mapping getters: we can call each directly
-          'marketResolveTime':'0x7ece29f3',
-          'marketTotalYes':'0x7d4834c6',
-          'marketTotalNo':'0x8f8dbd0e',
-          'marketResolved':'0x4bae670f',
-          'marketWinningOutcome':'0x8a8cf101'
-        };
-        const sel = getters[slotName];
-        if(!sel) return 0;
-        const data = await rpcCall('eth_call',[{to:CONTRACT_ADDRESS,data:sel+BigInt(marketId).toString(16).padStart(64,'0')},'latest']);
-        return data?BigInt('0x'+data):0n;
+      async switchNetwork(){
+        try{
+          await window.ethereum.request({method:'wallet_switchEthereumChain',params:[{chainId:BASE_SEPOLIA_CHAIN_ID}]});
+          this.wrongNetwork=false; await this.loadMarkets(); this.render();
+        }catch(err){ this.renderError('Switch failed: '+err.message); }
       }
-      async getBool(marketId, slotName){
-        const res = await this.getUint256(marketId, slotName);
-        return res===1n;
+      async simulate(to, data, value=0n){
+        const params=[{from:this.account,to,value:'0x'+value.toString(16),data}];
+        await rpcCall('eth_call', params);
       }
-      async simulateBet(marketId, outcome){
-        const data = '0xa6c2edf6' + BigInt(marketId).toString(16).padStart(64,'0') + (outcome?'0x1'.padStart(64,'0'):'0x0'.padStart(64,'0'));
-        await rpcCall('eth_call',[{from:this.account,to:CONTRACT_ADDRESS,value:'0x'+(BET_PRICE*1n).toString(16),data:data},'latest']);
-      }
-      async placeBet(e, marketId, outcome){
+      async bet(e, marketId, outcome){
         e.preventDefault();
-        try {
-          await this.simulateBet(marketId, outcome);
-        } catch(err){
-          alert('Simulation failed: '+err.message);
-          return;
-        }
-        this.pendingTx=true; this.txStatus='pending'; this.render();
-        try {
-          const data = '0xa6c2edf6' + BigInt(marketId).toString(16).padStart(64,'0') + (outcome?'0x1'.padStart(64,'0'):'0x0'.padStart(64,'0'));
+        const value = BigInt(BET_PRICE_ETH*1e18);
+        const data = iface.encodeFunctionData('placeBet',[marketId,outcome]);
+        try{ await this.simulate(CONTRACT_ADDRESS, data, value); }
+        catch(err){ alert('Simulation failed: '+err.message); return; }
+        this.pending=true; this.txStatus='pending'; this.render();
+        try{
           const tx = await window.ethereum.request({
             method:'eth_sendTransaction',
-            params:[{to:CONTRACT_ADDRESS,value:'0x'+(BET_PRICE*1n).toString(16),data:data}]
+            params:[{to:CONTRACT_ADDRESS,value:'0x'+value.toString(16),data}]
           });
           this.txStatus='success';
           await this.loadMarkets();
-        } catch(err){
+        }catch(err){
           this.txStatus='error'; this.txError=err.message;
-        } finally {
-          this.pendingTx=false; this.render();
-        }
+        }finally{ this.pending=false; this.render(); }
       }
-      async simulateClaim(marketId){
-        const data = '0x3ccfb174' + BigInt(marketId).toString(16).padStart(64,'0');
-        await rpcCall('eth_call',[{from:this.account,to:CONTRACT_ADDRESS,data:data},'latest']);
+      async resolve(e){
+        e.preventDefault();
+        const marketId=parseInt(e.target.marketId.value);
+        const outcome=e.target.outcome.value==='true';
+        const data = iface.encodeFunctionData('resolveMarket',[marketId,outcome]);
+        try{ await this.simulate(CONTRACT_ADDRESS, data, 0n); }
+        catch(err){ alert('Simulation failed: '+err.message); return; }
+        this.pending=true; this.txStatus='pending'; this.render();
+        try{
+          const tx = await window.ethereum.request({
+            method:'eth_sendTransaction',
+            params:[{to:CONTRACT_ADDRESS,data}]
+          });
+          this.txStatus='success';
+          await this.loadMarkets();
+        }catch(err){
+          this.txStatus='error'; this.txError=err.message;
+        }finally{ this.pending=false; this.render(); }
       }
       async claim(e, marketId){
         e.preventDefault();
-        try {
-          await this.simulateClaim(marketId);
-        } catch(err){
-          alert('Simulation failed: '+err.message);
-          return;
-        }
-        this.pendingTx=true; this.txStatus='pending'; this.render();
-        try {
-          const data = '0x3ccfb174' + BigInt(marketId).toString(16).padStart(64,'0');
+        const data = iface.encodeFunctionData('claim',[marketId]);
+        try{ await this.simulate(CONTRACT_ADDRESS, data, 0n); }
+        catch(err){ alert('Simulation failed: '+err.message); return; }
+        this.pending=true; this.txStatus='pending'; this.render();
+        try{
           const tx = await window.ethereum.request({
             method:'eth_sendTransaction',
-            params:[{to:CONTRACT_ADDRESS,data:data}]
+            params:[{to:CONTRACT_ADDRESS,data}]
           });
           this.txStatus='success';
           await this.loadMarkets();
-        } catch(err){
+        }catch(err){
           this.txStatus='error'; this.txError=err.message;
-        } finally {
-          this.pendingTx=false; this.render();
-        }
+        }finally{ this.pending=false; this.render(); }
       }
-      renderError(msg){ document.getElementById('app').innerHTML=`<div class="container"><div class="error">${msg}</div></div>`; }
+      async createMarket(e){
+        e.preventDefault();
+        const q = e.target.question.value;
+        const end = Math.floor(Date.now()/1000) + 86400*2;
+        const resolve = end + 86400;
+        const data = iface.encodeFunctionData('createMarket',[q, BigInt(end), BigInt(resolve)]);
+        try{ await this.simulate(CONTRACT_ADDRESS, data, 0n); }
+        catch(err){ alert('Simulation failed: '+err.message); return; }
+        this.pending=true; this.txStatus='pending'; this.render();
+        try{
+          const tx = await window.ethereum.request({
+            method:'eth_sendTransaction',
+            params:[{to:CONTRACT_ADDRESS,data}]
+          });
+          this.txStatus='success';
+          await this.loadMarkets();
+        }catch(err){
+          this.txStatus='error'; this.txError=err.message;
+        }finally{ this.pending=false; this.render(); }
+      }
+      renderError(msg){
+        document.getElementById('app').innerHTML=`
+          <div class="container" style="padding:80px 0;">
+            <div class="card" style="max-width:500px;margin:0 auto;text-align:center;">
+              <h3 style="color:var(--danger)">Error</h3>
+              <p style="color:var(--muted)">${msg}</p>
+              <button class="btn primary" onclick="app.init()" style="margin-top:16px;">Retry</button>
+            </div>
+          </div>`;
+      }
       render(){
-        const account=this.account||'Not connected';
-        let marketsHtml = this.markets.map(m=>{
-          const total = Number(m.totalYes+m.totalNo)/1e18;
-          const yesPct = total>0 ? (Number(m.totalYes*100n)/Number(m.totalYes+m.totalNo)).toFixed(1) : 0;
-          const status = m.resolved ? (m.winningOutcome?'YES':'NO') : (block.timestamp>=m.endTime?'CLOSED':'OPEN');
-          const statusClass = m.resolved ? 'status-resolved' : (block.timestamp>=m.endTime?'status-closed':'status-open');
-          const canClaim = false; // TODO: check if user has claimable bet
+        const marketsHtml = this.markets.map(m=>{
+          const totalEth = formatEth(BigInt(m.totalYes)+BigInt(m.totalNo));
+          const yesPct = Number(m.totalYes)*100/Number(m.totalYes+m.totalNo)||0;
+          const now = Date.now()/1000;
+          let status = 'Open';
+          let statusClass = 'status-open';
+          if(m.resolved){ status = m.winningOutcome?'YES':'NO'; statusClass='status-resolved'; }
+          else if(now>=m.endTime){ status='Closed'; statusClass='status-closed'; }
           return `
-            <div class="card">
-              <h3>${m.question}</h3>
-              <p><strong>Status:</strong> <span class="${statusClass}">${status}</span></p>
-              <p>Pool: ${total.toFixed(2)} ETH (≈ $${(total*this.ethPriceUsd).toLocaleString(undefined,{minimumFractionDigits:2})})</p>
-              <p>YES: ${(Number(m.totalYes)/1e18).toFixed(2)} ETH (${yesPct}%) | NO: ${(Number(m.totalNo)/1e18).toFixed(2)} ETH</p>
-              ${!m.resolved && block.timestamp<m.endTime ? `
+            <div class="card" style="${this.accountIsOwner ? '' : ''}">
+              <h3 style="margin-top:0;">${m.question}</h3>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span class="badge ${statusClass}">${status}</span>
+                ${m.resolved? `<span class="badge">Winner: ${m.winningOutcome?'YES':'NO'}</span>` : ''}
+              </div>
+              <div class="pool-display" style="margin-bottom:8px;">${totalEth} ETH <span style="font-size:.875rem;color:var(--muted);">(~${formatUSD(parseFloat(totalEth),this.ethPriceUsd)})</span></div>
+              <div class="progress"><div class="progress-bar" style="width:${yesPct}%"></div></div>
+              <div style="display:flex; justify-content:space-between; font-size:.875rem; color:var(--muted);">
+                <span>YES: ${formatEth(m.totalYes)} (${yesPct.toFixed(1)}%)</span>
+                <span>NO: ${formatEth(m.totalNo)}</span>
+              </div>
+              <p style="color:var(--muted);font-size:.875rem;margin-bottom:16px;">
+                Ends: ${new Date(m.endTime*1000).toLocaleString()} | Resolves: ${new Date(m.resolveTime*1000).toLocaleString()}
+              </p>
+              ${!m.resolved && now<m.endTime ? `
                 <div style="display:flex; gap:8px;">
-                  <button class="btn primary" onclick="app.placeBet(event,${m.id},true)" ${this.pendingTx?'disabled':''}>Bet YES 0.01 ETH</button>
-                  <button class="btn secondary" onclick="app.placeBet(event,${m.id},false)" ${this.pendingTx?'disabled':''}>Bet NO 0.01 ETH</button>
+                  <button class="btn primary ${this.pending?'loading':''}" onclick="app.bet(event,${m.id},true)" ${this.pending?'disabled':''}>Bet YES (${BET_PRICE_ETH} ETH)</button>
+                  <button class="btn secondary ${this.pending?'loading':''}" onclick="app.bet(event,${m.id},false)" ${this.pending?'disabled':''}>Bet NO (${BET_PRICE_ETH} ETH)</button>
                 </div>
               ` : ''}
               ${m.resolved ? `
-                <div style="margin-top:8px;">
-                  <p><strong>Winner:</strong> ${m.winningOutcome ? 'YES' : 'NO'}</p>
-                  ${canClaim ? `<button class="btn primary" onclick="app.claim(event,${m.id})" ${this.pendingTx?'disabled':''}>Claim Prize</button>` : '<p>No claimable amount for you.</p>'}
+                <div style="margin-top:12px;">
+                  <p><strong>Winner:</strong> ${m.winningOutcome?'YES':'NO'}</p>
+                  <button class="btn secondary small" onclick="app.claim(event,${m.id})" ${this.pending?'disabled':''}>Claim (if you won)</button>
                 </div>
               ` : ''}
             </div>
           `;
         }).join('');
+
         document.getElementById('app').innerHTML=`
           <div>
-            <header style="padding:20px 0;border-bottom:1px solid var(--border);">
-              <div class="container" style="display:flex;justify-content:space-between;align-items:center;">
+            <header>
+              <div class="container nav-row">
                 <div>
-                  <h1 style="font-size:1.5rem;margin:0;">Prediction Market</h1>
-                  <p style="color:var(--muted);margin:0;">Binary markets on Base Sepolia</p>
+                  <h1>Prediction <span>Market</span></h1>
+                  <p class="subtitle">Binary markets on Base Sepolia</p>
                 </div>
                 <nav>
+                  <span class="badge testnet">Base Sepolia</span>
                   <button class="btn secondary" onclick="app.init()">Refresh</button>
-                  <button class="btn secondary" onclick="app.disconnect()">Disconnect</button>
+                  ${this.account?`<button class="btn secondary" onclick="app.disconnect()">Disconnect</button>`:''}
                 </nav>
               </div>
             </header>
 
             ${this.wrongNetwork?`
             <div class="container" style="padding:20px 0;">
-              <div class="card" style="border-color:#f87171;">
-                <h3 style="color:#f87171;">Wrong Network</h3>
-                <p>Switch to Base Sepolia.</p>
-                <button class="btn primary" onclick="switchNetwork()">Switch</button>
+              <div class="card" style="border-color:var(--danger);text-align:center;">
+                <h3 style="color:var(--danger)">Wrong Network</h3>
+                <p style="color:var(--muted)">Switch to Base Sepolia.</p>
+                <button class="btn primary" onclick="app.switchNetwork()">Switch to Base Sepolia</button>
               </div>
             </div>`:''}
 
-            <section class="container">
-              <span class="badge primary">Base Sepolia</span>
-              <h1>Markets</h1>
-              ${this.txStatus ? `
-                <div class="card" style="border-color:${this.txStatus==='success'?'#22c55e':'#f87171'}">
-                  <p style="margin:0;color:${this.txStatus==='success'?'#22c55e':'#f87171'};font-weight:600;">
-                    ${this.txStatus==='pending'?'⏳ Processing transaction…':''}
-                    ${this.txStatus==='success'?'✅ Transaction confirmed!':''}
-                    ${this.txStatus==='error'?'❌ Transaction failed: '+this.txError:''}
-                  </p>
-                </div>
-              ` : ''}
-              <div class="grid-2">
-                <div class="card">
-                  <h3>Create Market (owner)</h3>
-                  <form onsubmit="app.createMarket(event)">
-                    <input name="question" placeholder="Question (e.g., ETH > $3000?)" required />
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-                      <input name="end" type="number" placeholder="End timestamp" required />
-                      <input name="resolve" type="number" placeholder="Resolve timestamp" required />
+            <main class="container" style="padding:40px 0;">
+              <div class="card" style="max-width:500px;margin:0 auto;">
+                <h3 style="margin-top:0;">Owner Tools</h3>
+                <form onsubmit="app.createMarket(event)" style="flex-direction:column;gap:12px;">
+                  <input name="question" placeholder="Market question (e.g., ETH > $3000?)" required />
+                  <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                    <div>
+                      <label style="color:var(--muted);font-size:.875rem;">End (timestamp)</label>
+                      <input name="end" type="number" placeholder="Auto (2d)" required />
                     </div>
-                    <button class="btn primary" type="submit">Create</button>
-                  </form>
-                </div>
-                <div class="card">
-                  <h3>Resolve Market (owner)</h3>
-                  <form onsubmit="app.resolveMarket(event)">
+                    <div>
+                      <label style="color:var(--muted);font-size:.875rem;">Resolve (timestamp)</label>
+                      <input name="resolve" type="number" placeholder="Auto (+1d)" required />
+                    </div>
+                  </div>
+                  <button class="btn primary" type="submit" ${this.pending?'disabled':''}>Create Market</button>
+                </form>
+                <form onsubmit="app.resolve(event)" style="margin-top:16px;flex-direction:column;gap:12px;">
+                  <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
                     <input name="marketId" type="number" placeholder="Market ID" required />
-                    <div style="display:flex; gap:8px;">
-                      <select name="outcome" style="flex:1;">
-                        <option value="true">YES</option>
-                        <option value="false">NO</option>
-                      </select>
-                      <button class="btn primary" type="submit">Resolve</button>
-                    </div>
-                  </form>
-                </div>
+                    <select name="outcome">
+                      <option value="true">YES</option>
+                      <option value="false">NO</option>
+                    </select>
+                  </div>
+                  <button class="btn secondary" type="submit" ${this.pending?'disabled':''}>Resolve Market</button>
+                </form>
               </div>
-              ${marketsHtml}
-            </section>
+
+              <div style="margin-top:32px;">
+                <h2>Markets</h2>
+                ${marketsHtml}
+              </div>
+            </main>
 
             <footer>
               <div class="container">
-                <p>Built by Eidolon.</p>
-                <p style="opacity:0.6;">MIT</p>
+                <p>Built by <a href="https://github.com/eidolon-agent" target="_blank">Eidolon</a>. MIT.</p>
               </div>
             </footer>
           </div>
         `;
       }
-      async createMarket(e){
-        e.preventDefault();
-        const q=e.target.question.value;
-        const end=Math.floor(Date.now()/1000)+86400;
-        const resolve=end+86400;
-        try{
-          const data='0x9b4ea848'+this.encodeParams(['string','uint256','uint256'],[q,end,resolve]);
-          const tx=await window.ethereum.request({method:'eth_sendTransaction',params:[{to:CONTRACT_ADDRESS,data:data}]});
-          alert('Tx: '+tx);
-          await this.loadMarkets();
-        } catch(err){ alert('Error: '+err.message); }
-      }
-      async resolveMarket(e){
-        e.preventDefault();
-        const marketId=parseInt(e.target.marketId.value);
-        const outcome=e.target.outcome.value==='true';
-        try{
-          const data='0x3ccfb174'+BigInt(marketId).toString(16).padStart(64,'0')+ (outcome?'0x1'.padStart(64,'0'):'0x0'.padStart(64,'0'));
-          const tx=await window.ethereum.request({method:'eth_sendTransaction',params:[{to:CONTRACT_ADDRESS,data:data}]});
-          alert('Tx: '+tx);
-          await this.loadMarkets();
-        } catch(err){ alert('Error: '+err.message); }
-      }
-      encodeParams(types, values){
-        let encoded='';
-        for(let i=0;i<types.length;i++){
-          const t=types[i], v=values[i];
-          if(t==='string') encoded += v.length.toString(16).padStart(64, '0') + v.padEnd(64, '\0').split('').map(c=>c.charCodeAt(0).toString(16).padStart(2,'0')).join('');
-          if(t==='uint256') encoded += BigInt(v).toString(16).padStart(64, '0');
-          if(t==='bool') encoded += v ? '1'.padStart(64, '0') : '0'.padStart(64, '0');
-        }
-        return encoded;
-      }
       disconnect(){ this.account=null; this.renderNoWallet(); }
-      renderNoWallet(){ document.getElementById('app').innerHTML=`<div class="container" style="padding:40px 0;"><div class="card" style="max-width:400px;margin:0 auto;"><h3>Connect Wallet</h3><div class="error">No wallet</div><a href="https://metamask.io/" target="_blank" class="btn primary">Install MetaMask</a></div></div>`; }
+      renderNoWallet(){
+        document.getElementById('app').innerHTML=`
+          <div class="container" style="padding:80px 0;">
+            <div class="card" style="max-width:400px;margin:0 auto;text-align:center;">
+              <h3>Connect Wallet</h3>
+              <p style="color:var(--muted)">Install MetaMask to interact.</p>
+              <a href="https://metamask.io/" target="_blank" class="btn primary" style="margin-top:16px;">Get MetaMask</a>
+              <button class="btn secondary" onclick="app.init()" style="margin-top:8px;">Retry</button>
+            </div>
+          </div>`;
+      }
     }
 
     const app=new App(); window.app=app;
-    (async()=>{ if(typeof window.ethereum==='undefined'){ app.renderNoWallet(); }else{ try{ await app.init(); }catch(err){ app.renderError('Startup failed: '+err.message); } } })();
+    (async()=>{
+      if(!window.ethereum){ app.renderNoWallet(); return; }
+      try{ await app.init(); } catch(err){ console.error(err); app.renderError('Startup failed: '+err.message); }
+    })();
   </script>
 </body>
 </html>

@@ -15,7 +15,7 @@ Binary yes/no markets on Base Sepolia. Users bet 0.01 ETH per outcome. House tak
 
 Static HTML in `frontend/index.html`. Deploy to Vercel (root=`frontend`). The contract address is already configured.
 
-**Live frontend:** https://frontend-b1ljps0xc-nikayrezzas-projects.vercel.app
+**Live frontend:** https://frontend-v77mp0zck-nikayrezzas-projects.vercel.app
 
 Features:
 - Connect wallet (MetaMask) with network guard (Base Sepolia)
