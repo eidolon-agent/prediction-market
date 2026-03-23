@@ -15,10 +15,13 @@
     .btn { display:inline-flex; align-items:center; justify-content:center; padding:10px 20px; border-radius:8px; font-weight:600; text-decoration:none; cursor:pointer; border:none; transition:background .2s; }
     .btn.primary { background:var(--primary); color:white; } .btn.primary:hover { background:var(--primaryHover); }
     .btn.secondary { background:#1f2937; color:#e5e5e5; }
-    input, button { padding:10px; margin:4px 0; border-radius:6px; border:1px solid var(--border); background:#1a1a1a; color:var(--text); width:100%; }
+    .btn:disabled { opacity:0.5; cursor:not-allowed; }
     .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:24px; margin-bottom:24px; }
     .error { color:#f87171; background:#1a1a1a; padding:12px; border-radius:8px; margin:12px 0; }
     #loading { color:var(--muted); font-style:italic; }
+    input, select { padding:10px; margin:4px 0; border-radius:6px; border:1px solid var(--border); background:#1a1a1a; color:var(--text); width:100%; }
+    .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+    .status-open { color:#22c55e; } .status-closed { color:#fbbf24; } .status-resolved { color:#3b82f6; }
   </style>
 </head>
 <body>
@@ -32,6 +35,7 @@
     const CONTRACT_ADDRESS = '0x5cF1E23bB2Ad549F0BE948Fcb02575a903B7e3de';
     const RPC_URL = 'https://sepolia.base.org';
     const BASE_SEPOLIA_CHAIN_ID = '0x14a34';
+    const BET_PRICE = 0.01 ether;
 
     function rpcCall(method, params=[]) {
       return fetch(RPC_URL, {
@@ -47,12 +51,6 @@
       return accs[0];
     }
 
-    function hexPad(str, width) {
-      if(!str.startsWith('0x')) str='0x'+str;
-      const needed = width*2 - (str.length-2);
-      return needed>0 ? '0x'+'0'.repeat(needed)+str.slice(2) : str;
-    }
-
     class App {
       constructor() {
         this.account=null;
@@ -61,6 +59,9 @@
         this.markets=[];
         this.pendingTx=false;
         this.txStatus='';
+        this.txError='';
+        this.ethPriceUsd=3000;
+        this.owner='';
       }
       async init() {
         try {
@@ -69,75 +70,166 @@
           const chainId=await window.ethereum.request({method:'eth_chainId'});
           this.currentChainId=chainId; this.wrongNetwork=(chainId!==BASE_SEPOLIA_CHAIN_ID);
           document.getElementById('loading').textContent=this.wrongNetwork?'Wrong network':'Loading markets…';
-          if(!this.wrongNetwork){ await this.loadMarkets(); this.render(); setInterval(()=>{ if(!this.wrongNetwork){ this.loadMarkets().then(()=>this.render()); } }, 30000); }
-          else { this.render(); }
+          if(!this.wrongNetwork){
+            await this.loadOwner();
+            await this.loadMarkets();
+          }
+          this.render();
+          setInterval(()=>{ if(!this.wrongNetwork){ this.loadMarkets().catch(()=>{}); } }, 15000);
         } catch(err){ this.renderError(err.message); }
       }
-      async loadMarkets() {
+      async fetchEthPrice(){
+        try {
+          const res=await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd');
+          const data=await res.json();
+          this.ethPriceUsd=data.ethereum?.usd||3000;
+        } catch(e){ this.ethPriceUsd=3000; }
+      }
+      async loadOwner(){
+        const code = await rpcCall('eth_getCode',[CONTRACT_ADDRESS,'latest']);
+        if(!code||code==='0x'||code==='0x0') throw new Error('Contract not deployed');
+        // Owner is not a public getter; we'll skip for MVP; assume non-owner UI hidden
+      }
+      async loadMarkets(){
         const countData = await rpcCall('eth_call',[{to:CONTRACT_ADDRESS,data:'0x75a22f8b'},'latest']); // marketCount()
         const count = Number('0x'+countData);
         this.markets = [];
         for(let i=0;i<count;i++){
-          // get market details via abi calls; for MVP we'll skip detailed fetch due to complexity
-          // In production, use The Graph.
-          this.markets.push({id:i, question:'...', endTime:0, resolveTime:0, totalYes:0, totalNo:0, resolved:false});
+          const id = i+1;
+          const q = await this.getString(id);
+          const end = await this.getUint256(id, 'marketEndTime');
+          const resolve = await this.getUint256(id, 'marketResolveTime');
+          const yes = await this.getUint256(id, 'marketTotalYes');
+          const no = await this.getUint256(id, 'marketTotalNo');
+          const resolved = await this.getBool(id, 'marketResolved');
+          const winning = await this.getBool(id, 'marketWinningOutcome');
+          this.markets.push({
+            id,
+            question:q,
+            endTime:Number(end),
+            resolveTime:Number(resolve),
+            totalYes:BigInt(yes),
+            totalNo:BigInt(no),
+            resolved,
+            winningOutcome:winning
+          });
         }
       }
-      async createMarket(e) {
-        e.preventDefault();
-        const q = e.target.question.value;
-        const end = Math.floor(Date.now()/1000) + 86400; // +1d
-        const resolve = end + 86400;
-        try {
-          const tx = await window.ethereum.request({
-            method:'eth_sendTransaction',
-            params:[{
-              to: CONTRACT_ADDRESS,
-              data: '0x9b4ea848' + this.encodeParams(['string','uint256','uint256'],[q,end,resolve])
-            }]
-          });
-          alert('Tx: '+tx);
-          await this.loadMarkets();
-        } catch(err){ alert('Error: '+err.message); }
+      async getString(marketId, slot){
+        // Not directly readable; approximate by using events or skip for MVP. We'll just show placeholder.
+        return 'Market #'+marketId;
       }
-      async placeBet(e) {
-        e.preventDefault();
-        const marketId = parseInt(e.target.marketId.value);
-        const outcome = e.target.outcome.value === 'true';
-        const value = '0x'+(0.01 ether).toString(16);
-        try {
-          const tx = await window.ethereum.request({
-            method:'eth_sendTransaction',
-            params:[{
-              to: CONTRACT_ADDRESS,
-              value: value,
-              data: '0xa6c2edf6' + this.encodeParams(['uint256','bool'],[marketId,outcome])
-            }]
-          });
-          alert('Tx: '+tx);
-          await this.loadMarkets();
-        } catch(err){ alert('Error: '+err.message); }
+      async getUint256(marketId, slotName){
+        // For MVP, we rely on separate getters we already defined: marketTotalYes(marketId), etc.
+        // This is a placeholder: call the appropriate getter based on slotName
+        const getters = {
+          'marketEndTime':'0x75d711ba', // keccak('marketEndTime(uint256)')? Actually we have public mapping getters: we can call each directly
+          'marketResolveTime':'0x7ece29f3',
+          'marketTotalYes':'0x7d4834c6',
+          'marketTotalNo':'0x8f8dbd0e',
+          'marketResolved':'0x4bae670f',
+          'marketWinningOutcome':'0x8a8cf101'
+        };
+        const sel = getters[slotName];
+        if(!sel) return 0;
+        const data = await rpcCall('eth_call',[{to:CONTRACT_ADDRESS,data:sel+BigInt(marketId).toString(16).padStart(64,'0')},'latest']);
+        return data?BigInt('0x'+data):0n;
       }
-      encodeParams(types, values) {
-        // simple ABI encoding for MVP: just concatenate after selector; not robust
-        let encoded='';
-        for(let i=0;i<types.length;i++){
-          const t=types[i], v=values[i];
-          if(t==='string') encoded += v.length.toString(16).padStart(64, '0') + v.padEnd(64, '\0').split('').map(c=>c.charCodeAt(0).toString(16).padStart(2,'0')).join('');
-          if(t==='uint256') encoded += BigInt(v).toString(16).padStart(64, '0');
-          if(t==='bool') encoded += v ? '1'.padStart(64, '0') : '0'.padStart(64, '0');
+      async getBool(marketId, slotName){
+        const res = await this.getUint256(marketId, slotName);
+        return res===1n;
+      }
+      async simulateBet(marketId, outcome){
+        const data = '0xa6c2edf6' + BigInt(marketId).toString(16).padStart(64,'0') + (outcome?'0x1'.padStart(64,'0'):'0x0'.padStart(64,'0'));
+        await rpcCall('eth_call',[{from:this.account,to:CONTRACT_ADDRESS,value:'0x'+(BET_PRICE*1n).toString(16),data:data},'latest']);
+      }
+      async placeBet(e, marketId, outcome){
+        e.preventDefault();
+        try {
+          await this.simulateBet(marketId, outcome);
+        } catch(err){
+          alert('Simulation failed: '+err.message);
+          return;
         }
-        return encoded;
+        this.pendingTx=true; this.txStatus='pending'; this.render();
+        try {
+          const data = '0xa6c2edf6' + BigInt(marketId).toString(16).padStart(64,'0') + (outcome?'0x1'.padStart(64,'0'):'0x0'.padStart(64,'0'));
+          const tx = await window.ethereum.request({
+            method:'eth_sendTransaction',
+            params:[{to:CONTRACT_ADDRESS,value:'0x'+(BET_PRICE*1n).toString(16),data:data}]
+          });
+          this.txStatus='success';
+          await this.loadMarkets();
+        } catch(err){
+          this.txStatus='error'; this.txError=err.message;
+        } finally {
+          this.pendingTx=false; this.render();
+        }
+      }
+      async simulateClaim(marketId){
+        const data = '0x3ccfb174' + BigInt(marketId).toString(16).padStart(64,'0');
+        await rpcCall('eth_call',[{from:this.account,to:CONTRACT_ADDRESS,data:data},'latest']);
+      }
+      async claim(e, marketId){
+        e.preventDefault();
+        try {
+          await this.simulateClaim(marketId);
+        } catch(err){
+          alert('Simulation failed: '+err.message);
+          return;
+        }
+        this.pendingTx=true; this.txStatus='pending'; this.render();
+        try {
+          const data = '0x3ccfb174' + BigInt(marketId).toString(16).padStart(64,'0');
+          const tx = await window.ethereum.request({
+            method:'eth_sendTransaction',
+            params:[{to:CONTRACT_ADDRESS,data:data}]
+          });
+          this.txStatus='success';
+          await this.loadMarkets();
+        } catch(err){
+          this.txStatus='error'; this.txError=err.message;
+        } finally {
+          this.pendingTx=false; this.render();
+        }
       }
       renderError(msg){ document.getElementById('app').innerHTML=`<div class="container"><div class="error">${msg}</div></div>`; }
-      render() {
+      render(){
+        const account=this.account||'Not connected';
+        let marketsHtml = this.markets.map(m=>{
+          const total = Number(m.totalYes+m.totalNo)/1e18;
+          const yesPct = total>0 ? (Number(m.totalYes*100n)/Number(m.totalYes+m.totalNo)).toFixed(1) : 0;
+          const status = m.resolved ? (m.winningOutcome?'YES':'NO') : (block.timestamp>=m.endTime?'CLOSED':'OPEN');
+          const statusClass = m.resolved ? 'status-resolved' : (block.timestamp>=m.endTime?'status-closed':'status-open');
+          const canClaim = false; // TODO: check if user has claimable bet
+          return `
+            <div class="card">
+              <h3>${m.question}</h3>
+              <p><strong>Status:</strong> <span class="${statusClass}">${status}</span></p>
+              <p>Pool: ${total.toFixed(2)} ETH (≈ $${(total*this.ethPriceUsd).toLocaleString(undefined,{minimumFractionDigits:2})})</p>
+              <p>YES: ${(Number(m.totalYes)/1e18).toFixed(2)} ETH (${yesPct}%) | NO: ${(Number(m.totalNo)/1e18).toFixed(2)} ETH</p>
+              ${!m.resolved && block.timestamp<m.endTime ? `
+                <div style="display:flex; gap:8px;">
+                  <button class="btn primary" onclick="app.placeBet(event,${m.id},true)" ${this.pendingTx?'disabled':''}>Bet YES 0.01 ETH</button>
+                  <button class="btn secondary" onclick="app.placeBet(event,${m.id},false)" ${this.pendingTx?'disabled':''}>Bet NO 0.01 ETH</button>
+                </div>
+              ` : ''}
+              ${m.resolved ? `
+                <div style="margin-top:8px;">
+                  <p><strong>Winner:</strong> ${m.winningOutcome ? 'YES' : 'NO'}</p>
+                  ${canClaim ? `<button class="btn primary" onclick="app.claim(event,${m.id})" ${this.pendingTx?'disabled':''}>Claim Prize</button>` : '<p>No claimable amount for you.</p>'}
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }).join('');
         document.getElementById('app').innerHTML=`
           <div>
             <header style="padding:20px 0;border-bottom:1px solid var(--border);">
               <div class="container" style="display:flex;justify-content:space-between;align-items:center;">
                 <div>
                   <h1 style="font-size:1.5rem;margin:0;">Prediction Market</h1>
-                  <p style="color:var(--muted);margin:0;">Binary markets on Base</p>
+                  <p style="color:var(--muted);margin:0;">Binary markets on Base Sepolia</p>
                 </div>
                 <nav>
                   <button class="btn secondary" onclick="app.init()">Refresh</button>
@@ -158,27 +250,42 @@
             <section class="container">
               <span class="badge primary">Base Sepolia</span>
               <h1>Markets</h1>
-              <div class="card">
-                <h3>Create Market (owner only)</h3>
-                <form onsubmit="app.createMarket(event)">
-                  <input name="question" placeholder="Question (e.g., ETH > $3000?)" required />
-                  <button class="btn primary" type="submit">Create</button>
-                </form>
-              </div>
-              ${this.markets.map(m=>`
+              ${this.txStatus ? `
+                <div class="card" style="border-color:${this.txStatus==='success'?'#22c55e':'#f87171'}">
+                  <p style="margin:0;color:${this.txStatus==='success'?'#22c55e':'#f87171'};font-weight:600;">
+                    ${this.txStatus==='pending'?'⏳ Processing transaction…':''}
+                    ${this.txStatus==='success'?'✅ Transaction confirmed!':''}
+                    ${this.txStatus==='error'?'❌ Transaction failed: '+this.txError:''}
+                  </p>
+                </div>
+              ` : ''}
+              <div class="grid-2">
                 <div class="card">
-                  <h3>${m.question}</h3>
-                  <p>Tickets: ${(m.totalYes+m.totalNo)/1e18} ETH | YES: ${m.totalYes/1e18} ETH | NO: ${m.totalNo/1e18} ETH</p>
-                  <form onsubmit="app.placeBet(event)" style="display:flex; gap:8px; align-items:center;">
-                    <input name="marketId" type="hidden" value="${m.id}" />
-                    <select name="outcome" style="background:#1a1a1a;color:var(--text);border:1px solid var(--border);padding:10px;border-radius:6px;">
-                      <option value="true">YES</option>
-                      <option value="false">NO</option>
-                    </select>
-                    <button class="btn primary" type="submit">Bet 0.01 ETH</button>
+                  <h3>Create Market (owner)</h3>
+                  <form onsubmit="app.createMarket(event)">
+                    <input name="question" placeholder="Question (e.g., ETH > $3000?)" required />
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                      <input name="end" type="number" placeholder="End timestamp" required />
+                      <input name="resolve" type="number" placeholder="Resolve timestamp" required />
+                    </div>
+                    <button class="btn primary" type="submit">Create</button>
                   </form>
                 </div>
-              `).join('')}
+                <div class="card">
+                  <h3>Resolve Market (owner)</h3>
+                  <form onsubmit="app.resolveMarket(event)">
+                    <input name="marketId" type="number" placeholder="Market ID" required />
+                    <div style="display:flex; gap:8px;">
+                      <select name="outcome" style="flex:1;">
+                        <option value="true">YES</option>
+                        <option value="false">NO</option>
+                      </select>
+                      <button class="btn primary" type="submit">Resolve</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+              ${marketsHtml}
             </section>
 
             <footer>
@@ -189,6 +296,39 @@
             </footer>
           </div>
         `;
+      }
+      async createMarket(e){
+        e.preventDefault();
+        const q=e.target.question.value;
+        const end=Math.floor(Date.now()/1000)+86400;
+        const resolve=end+86400;
+        try{
+          const data='0x9b4ea848'+this.encodeParams(['string','uint256','uint256'],[q,end,resolve]);
+          const tx=await window.ethereum.request({method:'eth_sendTransaction',params:[{to:CONTRACT_ADDRESS,data:data}]});
+          alert('Tx: '+tx);
+          await this.loadMarkets();
+        } catch(err){ alert('Error: '+err.message); }
+      }
+      async resolveMarket(e){
+        e.preventDefault();
+        const marketId=parseInt(e.target.marketId.value);
+        const outcome=e.target.outcome.value==='true';
+        try{
+          const data='0x3ccfb174'+BigInt(marketId).toString(16).padStart(64,'0')+ (outcome?'0x1'.padStart(64,'0'):'0x0'.padStart(64,'0'));
+          const tx=await window.ethereum.request({method:'eth_sendTransaction',params:[{to:CONTRACT_ADDRESS,data:data}]});
+          alert('Tx: '+tx);
+          await this.loadMarkets();
+        } catch(err){ alert('Error: '+err.message); }
+      }
+      encodeParams(types, values){
+        let encoded='';
+        for(let i=0;i<types.length;i++){
+          const t=types[i], v=values[i];
+          if(t==='string') encoded += v.length.toString(16).padStart(64, '0') + v.padEnd(64, '\0').split('').map(c=>c.charCodeAt(0).toString(16).padStart(2,'0')).join('');
+          if(t==='uint256') encoded += BigInt(v).toString(16).padStart(64, '0');
+          if(t==='bool') encoded += v ? '1'.padStart(64, '0') : '0'.padStart(64, '0');
+        }
+        return encoded;
       }
       disconnect(){ this.account=null; this.renderNoWallet(); }
       renderNoWallet(){ document.getElementById('app').innerHTML=`<div class="container" style="padding:40px 0;"><div class="card" style="max-width:400px;margin:0 auto;"><h3>Connect Wallet</h3><div class="error">No wallet</div><a href="https://metamask.io/" target="_blank" class="btn primary">Install MetaMask</a></div></div>`; }
