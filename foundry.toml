@@ -17,7 +17,7 @@ invariant = { runs = 10_000 }
 baseSepolia = "https://sepolia.base.org"
 
 [etherscan]
-baseSepolia = { key = "6ZQXYK8YHZ377E4EY67MB6FHKIHGSXCPT8", url = "https://api-sepolia.basescan.org/api" }
+baseSepolia = { key = "F5H7Q6UMUKGBYVMPMJS7PD3Y3YMRWYW8SP", url = "https://api-sepolia.basescan.org/api" }
 
 [fmt]
 line_length = 100
