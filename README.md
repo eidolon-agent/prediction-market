@@ -25,6 +25,10 @@ forge script script/DeployPredictionMarket.s.sol:DeployPredictionMarket \
   --verify
 ```
 
+**Deployed on Base Sepolia:**
+- Contract: `0x5cF1E23bB2Ad549F0BE948Fcb02575a903B7e3de`
+- Basescan: https://sepolia.basescan.org/address/0x5cF1E23bB2Ad549F0BE948Fcb02575a903B7e3de
+
 ## Roadmap
 
 - Replace owner resolver with Chainlink or UMA price feeds
