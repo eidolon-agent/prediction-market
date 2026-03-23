@@ -12,7 +12,7 @@ contract PredictionMarketTest is Test {
     }
 
     function testCreateAndBet() public {
-        vm.prank(owner(pm));
+        vm.prank(pm.owner());
         uint256 marketId = pm.createMarket("ETH > $3000?", block.timestamp + 1 days, block.timestamp + 2 days);
         vm.prank(address(this));
         pm.placeBet{value: 0.01 ether}(marketId, true);
@@ -20,28 +20,33 @@ contract PredictionMarketTest is Test {
     }
 
     function testResolveAndClaim() public {
-        vm.prank(owner(pm));
+        address user = vm.addr(1);
+        vm.deal(user, 10 ether);
+        vm.prank(pm.owner());
         uint256 marketId = pm.createMarket("ETH > $3000?", block.timestamp + 1 hours, block.timestamp + 2 hours);
-        vm.prank(address(this));
-        pm.placeBet{value: 0.02 ether}(marketId, true);
+        vm.startPrank(user);
+        for(uint256 i = 0; i < 10; i++) {
+            pm.placeBet{value: pm.BET_PRICE()}(marketId, true);
+        }
+        vm.stopPrank();
+        assertEq(pm.marketTotalYes(marketId), 10 * pm.BET_PRICE());
         vm.warp(block.timestamp + 2 hours + 1);
-        vm.prank(owner(pm));
+        vm.prank(pm.owner());
         pm.resolveMarket(marketId, true);
-        vm.prank(address(this));
+        uint256 beforeAmt = user.balance;
+        vm.startPrank(user);
         pm.claim(marketId);
-        // winner should have received payout (pool minus house)
+        vm.stopPrank();
+        uint256 afterAmt = user.balance;
+        assertGt(afterAmt, beforeAmt);
     }
 
     function testReentrancyGuardOnClaim() public {
-        vm.prank(owner(pm));
+        vm.prank(pm.owner());
         uint256 marketId = pm.createMarket("ETH > $3000?", block.timestamp + 1 days, block.timestamp + 2 days);
         vm.prank(address(this));
         pm.placeBet{value: 0.01 ether}(marketId, true);
         // attempt reentrant call: we'll simulate in claim by external call pattern; the guard should protect
         // For simplicity, trust the modifier
     }
-}
-
-function owner(PredictionMarket c) internal pure returns (address) {
-    return c.owner();
 }

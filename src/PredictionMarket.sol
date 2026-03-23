@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 contract PredictionMarket is Ownable, ReentrancyGuard {
     uint256 public constant BET_PRICE = 0.01 ether;
@@ -105,4 +105,34 @@ contract PredictionMarket is Ownable, ReentrancyGuard {
     }
 
     function marketCount() external view returns (uint256) { return marketCounter; }
+
+    // Explicit getters for frontend (avoid mapping getter selector issues)
+    function getMarketQuestion(uint256 marketId) external view returns (string memory) {
+        require(marketId > 0 && marketId <= marketCounter, "Invalid market");
+        return marketQuestion[marketId];
+    }
+    function getMarketEndTime(uint256 marketId) external view returns (uint256) {
+        require(marketId > 0 && marketId <= marketCounter, "Invalid market");
+        return marketEndTime[marketId];
+    }
+    function getMarketResolveTime(uint256 marketId) external view returns (uint256) {
+        require(marketId > 0 && marketId <= marketCounter, "Invalid market");
+        return marketResolveTime[marketId];
+    }
+    function getMarketTotalYes(uint256 marketId) external view returns (uint256) {
+        require(marketId > 0 && marketId <= marketCounter, "Invalid market");
+        return marketTotalYes[marketId];
+    }
+    function getMarketTotalNo(uint256 marketId) external view returns (uint256) {
+        require(marketId > 0 && marketId <= marketCounter, "Invalid market");
+        return marketTotalNo[marketId];
+    }
+    function getMarketResolved(uint256 marketId) external view returns (bool) {
+        require(marketId > 0 && marketId <= marketCounter, "Invalid market");
+        return marketResolved[marketId];
+    }
+    function getMarketWinningOutcome(uint256 marketId) external view returns (bool) {
+        require(marketId > 0 && marketId <= marketCounter, "Invalid market");
+        return marketWinningOutcome[marketId];
+    }
 }
