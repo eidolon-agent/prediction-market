@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prediction Market</title>
+  <style>
+    :root { --bg:#0a0a0a; --card:#111; --text:#e5e5e5; --muted:#a3a3a3; --primary:#3b82f6; --primaryHover:#2563eb; --border:#333; }
+    * { box-sizing:border-box; } body { margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; line-height:1.6; }
+    .container { max-width:1200px; margin:0 auto; padding:0 20px; } section { padding:80px 0; border-bottom:1px solid var(--border); }
+    h1 { font-size:2.5rem; margin:0 0 16px; } h2 { font-size:2rem; margin:0 0 16px; } h3 { font-size:1.25rem; margin:0 0 8px; }
+    .lead { font-size:1.125rem; color:var(--muted); max-width:700px; margin-bottom:24px; }
+    .badge { display:inline-block; padding:4px 12px; background:#1e3a5f; color:#93c5fd; border-radius:999px; font-size:.875rem; margin-right:8px; margin-bottom:8px; }
+    .badge.primary { background:var(--primary); color:white; }
+    .btn { display:inline-flex; align-items:center; justify-content:center; padding:10px 20px; border-radius:8px; font-weight:600; text-decoration:none; cursor:pointer; border:none; transition:background .2s; }
+    .btn.primary { background:var(--primary); color:white; } .btn.primary:hover { background:var(--primaryHover); }
+    .btn.secondary { background:#1f2937; color:#e5e5e5; }
+    input, button { padding:10px; margin:4px 0; border-radius:6px; border:1px solid var(--border); background:#1a1a1a; color:var(--text); width:100%; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:24px; margin-bottom:24px; }
+    .error { color:#f87171; background:#1a1a1a; padding:12px; border-radius:8px; margin:12px 0; }
+    #loading { color:var(--muted); font-style:italic; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="container" style="padding:40px 0;">
+      <div class="card"><h3>Loading…</h3><p id="loading">Initializing…</p></div>
+    </div>
+  </div>
+
+  <script>
+    const CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000000'; // set after deploy
+    const RPC_URL = 'https://sepolia.base.org';
+    const BASE_SEPOLIA_CHAIN_ID = '0x14a34';
+
+    function rpcCall(method, params=[]) {
+      return fetch(RPC_URL, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({jsonrpc:'2.0',id:1,method,params})
+      }).then(r=>r.json()).then(r=>{ if(r.error) throw new Error(r.error.message); return r.result; });
+    }
+
+    async function getWalletAddress() {
+      if(!window.ethereum) throw new Error('No wallet');
+      const accs = await window.ethereum.request({method:'eth_requestAccounts'});
+      return accs[0];
+    }
+
+    function hexPad(str, width) {
+      if(!str.startsWith('0x')) str='0x'+str;
+      const needed = width*2 - (str.length-2);
+      return needed>0 ? '0x'+'0'.repeat(needed)+str.slice(2) : str;
+    }
+
+    class App {
+      constructor() {
+        this.account=null;
+        this.wrongNetwork=false;
+        this.currentChainId=null;
+        this.markets=[];
+        this.pendingTx=false;
+        this.txStatus='';
+      }
+      async init() {
+        try {
+          document.getElementById('loading').textContent='Connecting wallet…';
+          this.account=await getWalletAddress();
+          const chainId=await window.ethereum.request({method:'eth_chainId'});
+          this.currentChainId=chainId; this.wrongNetwork=(chainId!==BASE_SEPOLIA_CHAIN_ID);
+          document.getElementById('loading').textContent=this.wrongNetwork?'Wrong network':'Loading markets…';
+          if(!this.wrongNetwork){ await this.loadMarkets(); this.render(); setInterval(()=>{ if(!this.wrongNetwork){ this.loadMarkets().then(()=>this.render()); } }, 30000); }
+          else { this.render(); }
+        } catch(err){ this.renderError(err.message); }
+      }
+      async loadMarkets() {
+        const countData = await rpcCall('eth_call',[{to:CONTRACT_ADDRESS,data:'0x75a22f8b'},'latest']); // marketCount()
+        const count = Number('0x'+countData);
+        this.markets = [];
+        for(let i=0;i<count;i++){
+          // get market details via abi calls; for MVP we'll skip detailed fetch due to complexity
+          // In production, use The Graph.
+          this.markets.push({id:i, question:'...', endTime:0, resolveTime:0, totalYes:0, totalNo:0, resolved:false});
+        }
+      }
+      async createMarket(e) {
+        e.preventDefault();
+        const q = e.target.question.value;
+        const end = Math.floor(Date.now()/1000) + 86400; // +1d
+        const resolve = end + 86400;
+        try {
+          const tx = await window.ethereum.request({
+            method:'eth_sendTransaction',
+            params:[{
+              to: CONTRACT_ADDRESS,
+              data: '0x9b4ea848' + this.encodeParams(['string','uint256','uint256'],[q,end,resolve])
+            }]
+          });
+          alert('Tx: '+tx);
+          await this.loadMarkets();
+        } catch(err){ alert('Error: '+err.message); }
+      }
+      async placeBet(e) {
+        e.preventDefault();
+        const marketId = parseInt(e.target.marketId.value);
+        const outcome = e.target.outcome.value === 'true';
+        const value = '0x'+(0.01 ether).toString(16);
+        try {
+          const tx = await window.ethereum.request({
+            method:'eth_sendTransaction',
+            params:[{
+              to: CONTRACT_ADDRESS,
+              value: value,
+              data: '0xa6c2edf6' + this.encodeParams(['uint256','bool'],[marketId,outcome])
+            }]
+          });
+          alert('Tx: '+tx);
+          await this.loadMarkets();
+        } catch(err){ alert('Error: '+err.message); }
+      }
+      encodeParams(types, values) {
+        // simple ABI encoding for MVP: just concatenate after selector; not robust
+        let encoded='';
+        for(let i=0;i<types.length;i++){
+          const t=types[i], v=values[i];
+          if(t==='string') encoded += v.length.toString(16).padStart(64, '0') + v.padEnd(64, '\0').split('').map(c=>c.charCodeAt(0).toString(16).padStart(2,'0')).join('');
+          if(t==='uint256') encoded += BigInt(v).toString(16).padStart(64, '0');
+          if(t==='bool') encoded += v ? '1'.padStart(64, '0') : '0'.padStart(64, '0');
+        }
+        return encoded;
+      }
+      renderError(msg){ document.getElementById('app').innerHTML=`<div class="container"><div class="error">${msg}</div></div>`; }
+      render() {
+        document.getElementById('app').innerHTML=`
+          <div>
+            <header style="padding:20px 0;border-bottom:1px solid var(--border);">
+              <div class="container" style="display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                  <h1 style="font-size:1.5rem;margin:0;">Prediction Market</h1>
+                  <p style="color:var(--muted);margin:0;">Binary markets on Base</p>
+                </div>
+                <nav>
+                  <button class="btn secondary" onclick="app.init()">Refresh</button>
+                  <button class="btn secondary" onclick="app.disconnect()">Disconnect</button>
+                </nav>
+              </div>
+            </header>
+
+            ${this.wrongNetwork?`
+            <div class="container" style="padding:20px 0;">
+              <div class="card" style="border-color:#f87171;">
+                <h3 style="color:#f87171;">Wrong Network</h3>
+                <p>Switch to Base Sepolia.</p>
+                <button class="btn primary" onclick="switchNetwork()">Switch</button>
+              </div>
+            </div>`:''}
+
+            <section class="container">
+              <span class="badge primary">Base Sepolia</span>
+              <h1>Markets</h1>
+              <div class="card">
+                <h3>Create Market (owner only)</h3>
+                <form onsubmit="app.createMarket(event)">
+                  <input name="question" placeholder="Question (e.g., ETH > $3000?)" required />
+                  <button class="btn primary" type="submit">Create</button>
+                </form>
+              </div>
+              ${this.markets.map(m=>`
+                <div class="card">
+                  <h3>${m.question}</h3>
+                  <p>Tickets: ${(m.totalYes+m.totalNo)/1e18} ETH | YES: ${m.totalYes/1e18} ETH | NO: ${m.totalNo/1e18} ETH</p>
+                  <form onsubmit="app.placeBet(event)" style="display:flex; gap:8px; align-items:center;">
+                    <input name="marketId" type="hidden" value="${m.id}" />
+                    <select name="outcome" style="background:#1a1a1a;color:var(--text);border:1px solid var(--border);padding:10px;border-radius:6px;">
+                      <option value="true">YES</option>
+                      <option value="false">NO</option>
+                    </select>
+                    <button class="btn primary" type="submit">Bet 0.01 ETH</button>
+                  </form>
+                </div>
+              `).join('')}
+            </section>
+
+            <footer>
+              <div class="container">
+                <p>Built by Eidolon.</p>
+                <p style="opacity:0.6;">MIT</p>
+              </div>
+            </footer>
+          </div>
+        `;
+      }
+      disconnect(){ this.account=null; this.renderNoWallet(); }
+      renderNoWallet(){ document.getElementById('app').innerHTML=`<div class="container" style="padding:40px 0;"><div class="card" style="max-width:400px;margin:0 auto;"><h3>Connect Wallet</h3><div class="error">No wallet</div><a href="https://metamask.io/" target="_blank" class="btn primary">Install MetaMask</a></div></div>`; }
+    }
+
+    const app=new App(); window.app=app;
+    (async()=>{ if(typeof window.ethereum==='undefined'){ app.renderNoWallet(); }else{ try{ await app.init(); }catch(err){ app.renderError('Startup failed: '+err.message); } } })();
+  </script>
+</body>
+</html>
