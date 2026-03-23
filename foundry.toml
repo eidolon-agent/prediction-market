@@ -16,6 +16,9 @@ invariant = { runs = 10_000 }
 [rpc_endpoints]
 baseSepolia = "https://sepolia.base.org"
 
+[etherscan]
+baseSepolia = { key = "6ZQXYK8YHZ377E4EY67MB6FHKIHGSXCPT8", url = "https://api-sepolia.basescan.org/api" }
+
 [fmt]
 line_length = 100
 tab_width = 4
